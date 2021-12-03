@@ -79,13 +79,14 @@ export class BlockchainService {
     }
 
     getClientAlgorand(): AlgodClient{
-        const baseServerMainnet:string = 'https://mainnet-algorand.api.purestake.io/ps2';
-        const baseServerTestnet:string = 'https://testnet-algorand.api.purestake.io/ps2';
         const port:string = '';
         const token = {
-            'x-api-Key': 'WFTzrix0W0atHXT5L3bPG7WyHtdxXNOk4v4wOW6o'
+            'x-api-Key': process.env.X_API_KEY_ALGO
         }
-        const algodclient:AlgodClient = new algosdk.Algodv2(token, baseServerTestnet, port);
+        const algodclient:AlgodClient = new algosdk.Algodv2(
+            token, 
+            process.env.TESTNET_ALGO==='true'? process.env.TESTNET_NODE_ALGO:process.env.MAINNET_NODE_ALGO, 
+            port);
         return algodclient;
     }
 }
