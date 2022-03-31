@@ -7,10 +7,13 @@ import { BlockchainService } from './blockchain/blockchain.service';
 import { BlockchainModule } from './blockchain/blockchain.module';
 
 @Module({
-  imports: [BlockchainModule, ConfigModule.forRoot({
-    envFilePath: '.devops.env',
-    isGlobal: true
-  }),],
+  imports: [
+    BlockchainModule,
+    ConfigModule.forRoot({
+      envFilePath: '.devops.env',
+      isGlobal: true,
+    }),
+  ],
   controllers: [AppController, BlockchainController],
   providers: [AppService, BlockchainService],
 })
