@@ -8,6 +8,8 @@ import { Balance } from './models/balance.model';
 import { BalanceAsset } from './models/balance_asset.model';
 import { BalanceResponse } from './models/balance_response.model';
 import { TransferAlgoResponse } from './models/transfer_algo_response.model';
+import { createHash } from 'crypto';
+import { NftCreationResponse } from './models/nft_creation_response.model';
 
 @Injectable()
 export class BlockchainService {
@@ -523,6 +525,129 @@ export class BlockchainService {
     }
   }
 
+  //NFT
+  async createNFTById(body, response) {
+    try {
+      if (
+        body === null ||
+        body['idOwner'] === undefined ||
+        body['nameNFT'] === undefined ||
+        body['ulrAssetPreview'] === undefined ||
+        body['mimeAssetPreview'] === undefined ||
+        body['idNFTDB'] === undefined
+      ) {
+        return response
+          .status(400)
+          .json(this.errorNFTAlgo({ error: 'body data not completed' }));
+      }
+      //client algorand
+      const clientAlgorand: AlgodClient = this.getClientAlgorand();
+      //get account
+      const account: Record<string, unknown> =
+        await this.appService.getAccountByIndexDB(body['idOwner']);
+      const myAccount: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(
+          account['mnemonic'].toString(),
+        );
+      //Check balance to tranfer
+      const accountInfo = await clientAlgorand
+        .accountInformation(myAccount.addr)
+        .do();
+      const resultLoadAlgo: string = await this.loadAlgosToCreateNFT(
+        accountInfo,
+      );
+      if (resultLoadAlgo === 'error') {
+        return response.status(400).json(
+          this.errorNFTAlgo({
+            error: 'error loading algos from hotwallet',
+          }),
+        );
+      }
+      //Create file JSON to metadata NFT
+      const jsonMetadata = {
+        name: body['nameNFT'],
+        description: body['description'],
+        image: body['ulrAssetPreview'],
+        image_mimetype: body['mimeAssetPreview'],
+        external_url: process.env.HOST_EPIONEER,
+        animation_url: body['ulrAssetAnimated'],
+        animation_url_mimetype: body['mimeAssetAnimated'],
+      };
+      //Upload the json metadata to AWS S3
+      const urlMetadata: string = await this.appService.createFileJsonNFT(
+        jsonMetadata,
+        body['idNFTDB'],
+      );
+      if (urlMetadata == 'error') {
+        return response.status(400).json(
+          this.errorNFTAlgo({
+            error: 'The Json metadata of NFT not have upload to AWS S3',
+          }),
+        );
+      }
+      //Sha256 of metadata NFT
+      const md5Metadata = createHash('md5')
+        .update(JSON.stringify(jsonMetadata))
+        .digest('hex');
+      //Create NFT
+      const params = await clientAlgorand.getTransactionParams().do();
+      const note = undefined;
+      const addr = myAccount.addr;
+      const defaultFrozen = false;
+      const decimals = 0;
+      const totalIssuance = 1;
+      const unitName = 'EPIO' + body['idNFTDB'];
+      const assetName = body['nameNFT'];
+      const assetURL = urlMetadata;
+      const assetMetadataHash = md5Metadata;
+      const manager = undefined;
+      const reserve = undefined;
+      const freeze = undefined;
+      const clawback = undefined;
+
+      // signing and sending "txn" allows "addr" to create an asset
+      const txn = algosdk.makeAssetCreateTxnWithSuggestedParams(
+        addr,
+        note,
+        totalIssuance,
+        decimals,
+        defaultFrozen,
+        manager,
+        reserve,
+        freeze,
+        clawback,
+        unitName,
+        assetName,
+        assetURL,
+        assetMetadataHash,
+        params,
+      );
+      // Sign the transaction
+      const rawSignedTxn = txn.signTxn(myAccount.sk);
+      const txId = txn.txID().toString();
+      const tx = await clientAlgorand.sendRawTransaction(rawSignedTxn).do();
+      let assetID = null;
+      // wait for transaction to be confirmed
+      const ptx = await this.waitForConfirmation(clientAlgorand, txId, 4);
+      // Get the new asset's information from the creator account
+      assetID = ptx['asset-index'];
+      //Get the completed Transaction
+      const mytxinfo = ptx.txn.txn;
+      const respOk = new NftCreationResponse();
+      respOk.success = true;
+      respOk.title = 'NFT creation completed';
+      respOk.successMessage = 'The NFT is succesfull complete';
+      respOk.responseData = { txId: txId, assetIDAlgorand: assetID };
+      return response.status(200).json(respOk);
+    } catch (e) {
+      return response.status(400).json(
+        this.errorNFTAlgo({
+          error: 'Creation NFT not completed: \n' + e,
+        }),
+      );
+    }
+  }
+
   async waitForConfirmation(algodClient, txId, timeout): Promise<any> {
     if (algodClient == null || txId == null || timeout < 0) {
       throw new Error('Bad arguments');
@@ -594,6 +719,18 @@ export class BlockchainService {
     return respPro;
   }
 
+  errorNFTAlgo(err) {
+    const respPro = new TransferAlgoResponse();
+    respPro.success = false;
+    respPro.title = 'Ups create NFT not completed';
+    respPro.errorData = new ErrorResponse({
+      errorCode: 1,
+      errorMsg: 'Error in create NFT',
+      errorData: err,
+    });
+    return respPro;
+  }
+
   getClientAlgorand(): AlgodClient {
     const port = '';
     const token = {
@@ -607,5 +744,73 @@ export class BlockchainService {
       port,
     );
     return algodclient;
+  }
+
+  async loadAlgosToCreateNFT(recieverAccountInfo: Record<string, any>) {
+    try {
+      //client algorand
+      const clientAlgorand: AlgodClient = this.getClientAlgorand();
+      //get account
+      const mnemonicHotWallet =
+        process.env.TESTNET_ALGO === 'true'
+          ? process.env.TEST_HOTWALLET
+          : process.env.HOTWALLET;
+      const myAccount: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(mnemonicHotWallet);
+      //Check balance to tranfer
+      const accountInfo = await clientAlgorand
+        .accountInformation(myAccount.addr)
+        .do();
+      if (algosdk.microalgosToAlgos(accountInfo.amount) < 1) {
+        return 'error';
+      }
+      //validate amount
+      let amountToLoad = 0;
+      if (recieverAccountInfo.assets.length === 0) {
+        amountToLoad = 0.2;
+      } else if (
+        algosdk.microalgosToAlgos(recieverAccountInfo.amount) <
+        (recieverAccountInfo.assets.length + 2) * 0.1
+      ) {
+        amountToLoad =
+          (recieverAccountInfo.assets.length + 2) * 0.1 -
+          algosdk.microalgosToAlgos(recieverAccountInfo.amount);
+      }
+
+      amountToLoad = amountToLoad + 0.001;
+      // Construct the transaction
+      const params = await clientAlgorand.getTransactionParams().do();
+      const receiver = recieverAccountInfo.address;
+      const enc = new TextEncoder();
+      const note = enc.encode('epio load');
+      const amount = algosdk.algosToMicroalgos(amountToLoad); //cambiar
+      const sender = myAccount.addr;
+      const txn = algosdk.makePaymentTxnWithSuggestedParams(
+        sender,
+        receiver,
+        amount,
+        undefined,
+        note,
+        params,
+      );
+
+      // Sign the transaction
+      const signedTxn = txn.signTxn(myAccount.sk);
+      const txId = txn.txID().toString();
+
+      // Submit the transaction
+      await clientAlgorand.sendRawTransaction(signedTxn).do();
+
+      // Wait for confirmation
+      const confirmedTxn = await this.waitForConfirmation(
+        clientAlgorand,
+        txId,
+        4,
+      );
+      return txId;
+    } catch (e) {
+      console.error(e);
+      return 'error';
+    }
   }
 }

@@ -16,6 +16,8 @@ import { TrasnferAlgoAtoIDTO } from './models/transfer_algo_a_i_dto.model';
 import { TransferAlgoItoADTO } from './models/transfer_algo_i_a_dto.model';
 import { TrasnferAlgoItoIDTO } from './models/transfer_algo_i_i_dto.model';
 import { TransferAlgoResponse } from './models/transfer_algo_response.model';
+import { createNFTByIdDTO } from './models/nft_creation_dto.model';
+import { NftCreationResponse } from './models/nft_creation_response.model';
 
 @ApiTags('Blockchain')
 @Controller('blockchain')
@@ -157,21 +159,20 @@ export class BlockchainController {
   //NFTs
   @Post('algorand/createNftById')
   @ApiOperation({
-    summary:
-      'Send transfer transaction algo with inde usar data base to address receiver',
+    summary: 'Create a nft in algorand',
   })
   @ApiResponse({
     status: 200,
     description: 'Successful',
-    type: TransferAlgoResponse,
+    type: NftCreationResponse,
   })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
-  async createNFTById(@Body() body: TransferAlgoItoADTO, @Res() response) {
-    return await this.blockchainService.transferAlgosItoA(body, response);
+  async createNFTById(@Body() body: createNFTByIdDTO, @Res() response) {
+    return await this.blockchainService.createNFTById(body, response);
   }
 
-  @Post('algorand/transferNFTAtoA')
+  /*@Post('algorand/transferNFTAtoA')
   @ApiOperation({
     summary: 'Send transfer transaction NFT with mnemonic to address',
   })
@@ -354,5 +355,5 @@ export class BlockchainController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async transferSLVAItoA(@Body() body: TransferSLVAItoADTO, @Res() response) {
     return await this.blockchainService.transferSLVAItoA(body, response);
-  }
+  }*/
 }

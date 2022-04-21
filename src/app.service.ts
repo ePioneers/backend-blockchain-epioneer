@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { GeneralResponse } from './models/general_response.model';
-import { createCipheriv, createDecipheriv, randomBytes, scrypt } from 'crypto';
+import { createCipheriv, createDecipheriv, scrypt } from 'crypto';
 import { promisify } from 'util';
 import * as AWS from 'aws-sdk';
 import * as algosdk from 'algosdk';
@@ -31,7 +31,10 @@ export class AppService {
     const file = '' + index + '.epio';
 
     const options = {
-      Bucket: process.env.S3_BUCKET,
+      Bucket:
+        process.env.TESTNET_ALGO === 'true'
+          ? process.env.TEST_S3_BUCKET
+          : process.env.S3_BUCKET,
       Key: file,
     };
     try {
@@ -70,7 +73,10 @@ export class AppService {
       const nameFile = '' + index + '.epio';
 
       // Create S3 service object
-      const s3Bucket = process.env.S3_BUCKET;
+      const s3Bucket =
+        process.env.TESTNET_ALGO === 'true'
+          ? process.env.TEST_S3_BUCKET
+          : process.env.S3_BUCKET;
       const s3 = new AWS.S3({
         accessKeyId: process.env.AWS_S3_ACCESS_KEY,
         secretAccessKey: process.env.AWS_S3_KEY_SECRET,
@@ -88,6 +94,44 @@ export class AppService {
     } catch (e) {
       console.log(e);
       return -1;
+    }
+  }
+
+  async createFileJsonNFT(jsonNft, idNFT: string): Promise<string> {
+    try {
+      const dataToFile = JSON.stringify(jsonNft);
+
+      //upload file
+      const nameFile = 'epio' + idNFT + '-' + Date.now() + '.json';
+      // Create S3 service object
+      const s3Bucket =
+        process.env.TESTNET_ALGO === 'true'
+          ? process.env.TEST_S3_BUCKET_JSON_NFT
+          : process.env.S3_BUCKET_JSON_NFT;
+      const s3 = new AWS.S3({
+        accessKeyId: process.env.AWS_S3_ACCESS_KEY,
+        secretAccessKey: process.env.AWS_S3_KEY_SECRET,
+      });
+      // Setting up S3 upload parameters
+      const params = {
+        Bucket: s3Bucket,
+        Key: nameFile,
+        ContentType: 'application/json',
+        Body: dataToFile,
+        ACL: 'public-read',
+      };
+      const s3Response = await s3.putObject(params).promise();
+      const urlJson =
+        'https://' +
+        (process.env.TESTNET_ALGO === 'true'
+          ? process.env.TEST_S3_BUCKET_JSON_NFT
+          : process.env.S3_BUCKET_JSON_NFT) +
+        '.s3.amazonaws.com/' +
+        nameFile;
+      return urlJson;
+    } catch (e) {
+      console.log(e);
+      return 'error';
     }
   }
 
