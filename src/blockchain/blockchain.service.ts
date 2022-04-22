@@ -166,6 +166,52 @@ export class BlockchainService {
     }
   }
 
+  async getAlgorandInfoToken(dataQuery: Record<string, unknown>, response) {
+    let respPro: BalanceResponse;
+    if (!dataQuery) {
+      respPro = new BalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 0,
+          errorMsg:
+            'No se envió id para verificar el token, por favor enviar id token.',
+          errorData: 'Missing query: id',
+        }),
+      });
+      return response.status(400).json(respPro);
+    } else if (!dataQuery['id']) {
+      respPro = new BalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 0,
+          errorMsg:
+            'No se envió id para verificar el token, por favor enviar id token.',
+          errorData: 'Missing query: id',
+        }),
+      });
+      return response.status(400).json(respPro);
+    }
+
+    try {
+      const resultAsset = await this.getAssetInfo(+dataQuery['id']);
+      return response.status(200).json({ data: resultAsset });
+    } catch (e) {
+      respPro = new BalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 9,
+          errorMsg: 'Ocurrió un error en el servidor, comuniquese con soporte.',
+          errorData: e,
+        }),
+      });
+      console.log(e);
+      return response.status(500).json(respPro);
+    }
+  }
+
   async addressAlgoById(index: number, response) {
     try {
       if (index < 0) {
@@ -821,6 +867,198 @@ export class BlockchainService {
       // Construct the transaction
       const params = await clientAlgorand.getTransactionParams().do();
       const receiver = myAccountTo.addr;
+      const enc = new TextEncoder();
+      const note = enc.encode(body['msg'] || '');
+      //load decimals of asset
+      const decimalAmount = await this.compactAmountToMicroAmount(
+        body['amount'],
+        body['assetID'],
+      );
+      const amount = decimalAmount;
+      const sender = myAccount.addr;
+      const revocationTarget = undefined;
+      const closeRemainderTo = undefined;
+      const xtxn = algosdk.makeAssetTransferTxnWithSuggestedParams(
+        sender,
+        receiver,
+        closeRemainderTo,
+        revocationTarget,
+        amount,
+        note,
+        body['assetID'],
+        params,
+      );
+      // Sign the transaction
+      const rawSignedTxn = xtxn.signTxn(myAccount.sk);
+      const txId = xtxn.txID().toString();
+      // Submit the transaction
+      await clientAlgorand.sendRawTransaction(rawSignedTxn).do();
+      // Wait for confirmation
+      const confirmedTxn = await this.waitForConfirmation(
+        clientAlgorand,
+        txId,
+        4,
+      );
+      //Get the completed Transaction
+      const mytxinfo = confirmedTxn.txn.txn;
+      const respOk = new TransferTokenResponse();
+      respOk.success = true;
+      respOk.title = 'Transfer token completed';
+      respOk.successMessage = 'The transfer token is complete';
+      respOk.responseData = { txId: txId, txDetail: mytxinfo };
+      return response.status(200).json(respOk);
+    } catch (e) {
+      console.log(e);
+      return response.status(500).json(this.errorTransferAlgo(e.code));
+    }
+  }
+
+  async transferTokenAtoI(body, response) {
+    try {
+      if (
+        body === null ||
+        body['indexTo'] === undefined ||
+        body['secretFrom'] === undefined ||
+        body['assetID'] === undefined ||
+        body['amount'] === undefined
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'body data not completed' }));
+      }
+      //client algorand
+      const clientAlgorand: AlgodClient = this.getClientAlgorand();
+      //get account
+      const myAccount: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(body['secretFrom']);
+      const accountInfo = await clientAlgorand
+        .accountInformation(myAccount.addr)
+        .do();
+      //get account To
+      const account2: Record<string, unknown> =
+        await this.appService.getAccountByIndexDB(body['indexTo']);
+      const accountTo: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(
+          account2['mnemonic'].toString(),
+        );
+      const accountInfoReceiver = await clientAlgorand
+        .accountInformation(accountTo.addr)
+        .do();
+      //Load algos to optin and transfer
+      if (
+        (await this.loadAlgosToOptIn(accountInfoReceiver, body['assetID'])) ===
+        'error'
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'Fail opt-in load algos' }));
+      }
+      if (
+        (await this.optIn(account2['mnemonic'].toString(), body['assetID'])) ===
+        'error'
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'Fail opt-in tx' }));
+      }
+
+      // Transfer
+      // Construct the transaction
+      const params = await clientAlgorand.getTransactionParams().do();
+      const receiver = accountTo.addr;
+      const enc = new TextEncoder();
+      const note = enc.encode(body['msg'] || '');
+      //load decimals of asset
+      const decimalAmount = await this.compactAmountToMicroAmount(
+        body['amount'],
+        body['assetID'],
+      );
+      const amount = decimalAmount;
+      const sender = myAccount.addr;
+      const revocationTarget = undefined;
+      const closeRemainderTo = undefined;
+      const xtxn = algosdk.makeAssetTransferTxnWithSuggestedParams(
+        sender,
+        receiver,
+        closeRemainderTo,
+        revocationTarget,
+        amount,
+        note,
+        body['assetID'],
+        params,
+      );
+      // Sign the transaction
+      const rawSignedTxn = xtxn.signTxn(myAccount.sk);
+      const txId = xtxn.txID().toString();
+      // Submit the transaction
+      await clientAlgorand.sendRawTransaction(rawSignedTxn).do();
+      // Wait for confirmation
+      const confirmedTxn = await this.waitForConfirmation(
+        clientAlgorand,
+        txId,
+        4,
+      );
+      //Get the completed Transaction
+      const mytxinfo = confirmedTxn.txn.txn;
+      const respOk = new TransferTokenResponse();
+      respOk.success = true;
+      respOk.title = 'Transfer token completed';
+      respOk.successMessage = 'The transfer token is complete';
+      respOk.responseData = { txId: txId, txDetail: mytxinfo };
+      return response.status(200).json(respOk);
+    } catch (e) {
+      return response.status(500).json(this.errorTransferAlgo(e.code));
+    }
+  }
+
+  async transferTokenItoA(body, response) {
+    try {
+      if (
+        body === null ||
+        body['indexFrom'] === undefined ||
+        body['secretTo'] === undefined ||
+        body['assetID'] === undefined ||
+        body['amount'] === undefined
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'body data not completed' }));
+      }
+      //client algorand
+      const clientAlgorand: AlgodClient = this.getClientAlgorand();
+      //get account From
+      const account: Record<string, unknown> =
+        await this.appService.getAccountByIndexDB(body['indexFrom']);
+      const myAccount: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(
+          account['mnemonic'].toString(),
+        );
+      //get account To
+      const accountTo: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(body['secretTo']);
+      const accountInfoReceiver = await clientAlgorand
+        .accountInformation(accountTo.addr)
+        .do();
+
+      //Load algos to optin and transfer
+      if (
+        (await this.loadAlgosToOptIn(accountInfoReceiver, body['assetID'])) ===
+        'error'
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'Fail opt-in load algos' }));
+      }
+      if ((await this.optIn(body['secretTo'], body['assetID'])) === 'error') {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'Fail opt-in tx' }));
+      }
+
+      // Transfer
+      // Construct the transaction
+      const params = await clientAlgorand.getTransactionParams().do();
+      const receiver = accountTo.addr;
       const enc = new TextEncoder();
       const note = enc.encode(body['msg'] || '');
       //load decimals of asset

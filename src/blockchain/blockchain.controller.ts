@@ -21,6 +21,8 @@ import { NftCreationResponse } from './models/nft_creation_response.model';
 import { TransferTokenResponse } from './models/transfer_token_response.model';
 import { TrasnferTokenAtoADTO } from './models/transfer_token_a_a_dto.model';
 import { TrasnferTokenItoIDTO } from './models/transfer_token_i_i_dto.model';
+import { TrasnferTokenAtoIDTO } from './models/transfer_token_a_i_dto.model';
+import { TransferTokenItoADTO } from './models/transfer_token_i_a_dto.model';
 
 @ApiTags('Blockchain')
 @Controller('blockchain')
@@ -82,6 +84,24 @@ export class BlockchainController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async getAlgorandBalanceI(@Query() dataQuery: any, @Res() response) {
     return await this.blockchainService.getAlgorandBalanceI(
+      dataQuery,
+      response,
+    );
+  }
+
+  @Get('algorand/tokenById')
+  @ApiOperation({
+    summary: 'Get info token in the Algorand blockchain',
+  })
+  @ApiQuery({ name: 'id', required: true, description: 'id of token' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful',
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async getAlgorandInfoToken(@Query() dataQuery: any, @Res() response) {
+    return await this.blockchainService.getAlgorandInfoToken(
       dataQuery,
       response,
     );
@@ -214,158 +234,34 @@ export class BlockchainController {
     return await this.blockchainService.transferTokenItoI(body, response);
   }
 
-  /*@Post('algorand/transferNFToAtoI')
+  @Post('algorand/transferTokenAtoI')
   @ApiOperation({
-    summary: 'Send transfer transaction NFT with mnemonic to index',
+    summary: 'Send transfer transaction token with mnemonic to index',
   })
   @ApiResponse({
     status: 200,
     description: 'Successful',
-    type: TransferNFTResponse,
+    type: TransferTokenResponse,
   })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
-  async transferNFTAtoI(@Body() body: TrasnferNFTAtoIDTO, @Res() response) {
-    return await this.blockchainService.transferNFTAtoI(body, response);
+  async transferTokenAtoI(@Body() body: TrasnferTokenAtoIDTO, @Res() response) {
+    return await this.blockchainService.transferTokenAtoI(body, response);
   }
 
-  @Post('algorand/transferNFTItoA')
+  @Post('algorand/transferTokenItoA')
   @ApiOperation({
     summary:
-      'Send transfer transaction NFT with inde usar data base to address receiver',
+      'Send transfer transaction token with id user data base to address receiver',
   })
   @ApiResponse({
     status: 200,
     description: 'Successful',
-    type: TransferNFTResponse,
+    type: TransferTokenResponse,
   })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
-  async transferNFTItoA(@Body() body: TransferNFTItoADTO, @Res() response) {
-    return await this.blockchainService.transferNFTItoA(body, response);
+  async transferNFTItoA(@Body() body: TransferTokenItoADTO, @Res() response) {
+    return await this.blockchainService.transferTokenItoA(body, response);
   }
-
-  //USDT
-  @Post('algorand/transferUSDTAtoA')
-  @ApiOperation({
-    summary: 'Send transfer transaction USDT with mnemonic to address',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful',
-    type: TransferUSDTResponse,
-  })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  async transferUSDTAtoA(@Body() body: TrasnferUSDTAtoADTO, @Res() response) {
-    return await this.blockchainService.transferUSDTAtoA(body, response);
-  }
-
-  @Post('algorand/transferUSDTItoI')
-  @ApiOperation({
-    summary: 'Send transfer transaction USDT index to index user data base',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful',
-    type: TransferUSDTResponse,
-  })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  async transferUSDTItoI(@Body() body: TrasnferUSDTItoIDTO, @Res() response) {
-    return await this.blockchainService.transferUSDTItoI(body, response);
-  }
-
-  @Post('algorand/transferUSDToAtoI')
-  @ApiOperation({
-    summary: 'Send transfer transaction USDT with mnemonic to index',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful',
-    type: TransferUSDTResponse,
-  })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  async transferUSDTAtoI(@Body() body: TrasnferUSDTAtoIDTO, @Res() response) {
-    return await this.blockchainService.transferUSDTAtoI(body, response);
-  }
-
-  @Post('algorand/transferUSDTItoA')
-  @ApiOperation({
-    summary:
-      'Send transfer transaction USDT with inde usar data base to address receiver',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful',
-    type: TransferUSDTResponse,
-  })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  async transferUSDTItoA(@Body() body: TransferUSDTItoADTO, @Res() response) {
-    return await this.blockchainService.transferUSDTItoA(body, response);
-  }
-
-  //SLVA
-  @Post('algorand/transferSLVAAtoA')
-  @ApiOperation({
-    summary: 'Send transfer transaction SLVA with mnemonic to address',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful',
-    type: TransferSLVAResponse,
-  })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  async transferSLVAAtoA(@Body() body: TrasnferSLVAAtoADTO, @Res() response) {
-    return await this.blockchainService.transferSLVAAtoA(body, response);
-  }
-
-  @Post('algorand/transferSLVAItoI')
-  @ApiOperation({
-    summary: 'Send transfer transaction SLVA index to index user data base',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful',
-    type: TransferSLVAResponse,
-  })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  async transferSLVAItoI(@Body() body: TrasnferSLVAItoIDTO, @Res() response) {
-    return await this.blockchainService.transferSLVAItoI(body, response);
-  }
-
-  @Post('algorand/transferSLVAoAtoI')
-  @ApiOperation({
-    summary: 'Send transfer transaction SLVA with mnemonic to index',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful',
-    type: TransferSLVAResponse,
-  })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  async transferSLVAAtoI(@Body() body: TrasnferSLVAAtoIDTO, @Res() response) {
-    return await this.blockchainService.transferSLVAAtoI(body, response);
-  }
-
-  @Post('algorand/transferSLVAItoA')
-  @ApiOperation({
-    summary:
-      'Send transfer transaction SLVA with inde usar data base to address receiver',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful',
-    type: TransferSLVAResponse,
-  })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  async transferSLVAItoA(@Body() body: TransferSLVAItoADTO, @Res() response) {
-    return await this.blockchainService.transferSLVAItoA(body, response);
-  }*/
 }
