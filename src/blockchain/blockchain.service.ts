@@ -720,7 +720,12 @@ export class BlockchainService {
       const receiver = accountTo.addr;
       const enc = new TextEncoder();
       const note = enc.encode(body['msg'] || '');
-      const amount = body['amount'];
+      //load decimals of asset
+      const decimalAmount = await this.compactAmountToMicroAmount(
+        body['amount'],
+        body['assetID'],
+      );
+      const amount = decimalAmount;
       const sender = myAccount.addr;
       const revocationTarget = undefined;
       const closeRemainderTo = undefined;
@@ -754,7 +759,7 @@ export class BlockchainService {
       respOk.responseData = { txId: txId, txDetail: mytxinfo };
       return response.status(200).json(respOk);
     } catch (e) {
-      return response.status(500).json(this.errorTransferAlgo(e));
+      return response.status(500).json(this.errorTransferAlgo(e.code));
     }
   }
 
@@ -782,7 +787,7 @@ export class BlockchainService {
         );
       //get account To
       const account2: Record<string, unknown> =
-        await this.appService.getAccountByIndexDB(body['indexFrom']);
+        await this.appService.getAccountByIndexDB(body['indexTo']);
       const myAccountTo: algosdk.Account =
         await this.appService.getAccountbyMnemonic(
           account2['mnemonic'].toString(),
@@ -818,7 +823,12 @@ export class BlockchainService {
       const receiver = myAccountTo.addr;
       const enc = new TextEncoder();
       const note = enc.encode(body['msg'] || '');
-      const amount = body['amount'];
+      //load decimals of asset
+      const decimalAmount = await this.compactAmountToMicroAmount(
+        body['amount'],
+        body['assetID'],
+      );
+      const amount = decimalAmount;
       const sender = myAccount.addr;
       const revocationTarget = undefined;
       const closeRemainderTo = undefined;
@@ -852,7 +862,8 @@ export class BlockchainService {
       respOk.responseData = { txId: txId, txDetail: mytxinfo };
       return response.status(200).json(respOk);
     } catch (e) {
-      return response.status(500).json(this.errorTransferAlgo(e));
+      console.log(e);
+      return response.status(500).json(this.errorTransferAlgo(e.code));
     }
   }
 
@@ -1225,6 +1236,53 @@ export class BlockchainService {
     } catch (e) {
       console.error(e);
       return 'error';
+    }
+  }
+
+  async compactAmountToMicroAmount(
+    compactAmount: number,
+    assetID: number,
+  ): Promise<number> {
+    const result = await this.getAssetInfo(assetID);
+    const decimalsAsset = result.assets[0].params.decimals;
+    if (decimalsAsset > 0) {
+      const strRatio = '1e' + result.assets[0].params.decimals;
+      const amountResult: number = compactAmount * Number(strRatio);
+      return Math.round(amountResult);
+    } else {
+      return compactAmount;
+    }
+  }
+
+  async microAmountToCompactAmount(
+    microAmount: number,
+    assetID: number,
+  ): Promise<number> {
+    const result = await this.getAssetInfo(assetID);
+    const decimalsAsset = result.assets[0].params.decimals;
+    const strRatio = '1e' + decimalsAsset;
+    return microAmount / Number(strRatio);
+  }
+
+  async getAssetInfo(assetID: number) {
+    try {
+      const indexerRoute =
+        process.env.TESTNET_ALGO === 'true'
+          ? process.env.TESTNET_INDEXER_ALGO
+          : process.env.MAINNET_INDEXER_ALGO;
+      //indexer algorand
+      const token = {
+        'X-API-key': process.env.X_API_KEY_ALGO,
+      };
+      const indexerClient = new algosdk.Indexer(token, indexerRoute, '');
+      const assetInfo = await indexerClient
+        .searchForAssets()
+        .index(assetID)
+        .do();
+      return assetInfo;
+    } catch (e) {
+      console.error(e);
+      throw new Error(e);
     }
   }
 }
