@@ -691,13 +691,11 @@ export class BlockchainService {
       //get account
       const myAccount: algosdk.Account =
         await this.appService.getAccountbyMnemonic(body['secretFrom']);
-      //Check balance to tranfer
       const accountInfo = await clientAlgorand
         .accountInformation(myAccount.addr)
         .do();
       const accountTo: algosdk.Account =
         await this.appService.getAccountbyMnemonic(body['secretTo']);
-      //Check balance to tranfer
       const accountInfoReceiver = await clientAlgorand
         .accountInformation(accountTo.addr)
         .do();
@@ -720,6 +718,104 @@ export class BlockchainService {
       // Construct the transaction
       const params = await clientAlgorand.getTransactionParams().do();
       const receiver = accountTo.addr;
+      const enc = new TextEncoder();
+      const note = enc.encode(body['msg'] || '');
+      const amount = body['amount'];
+      const sender = myAccount.addr;
+      const revocationTarget = undefined;
+      const closeRemainderTo = undefined;
+      const xtxn = algosdk.makeAssetTransferTxnWithSuggestedParams(
+        sender,
+        receiver,
+        closeRemainderTo,
+        revocationTarget,
+        amount,
+        note,
+        body['assetID'],
+        params,
+      );
+      // Sign the transaction
+      const rawSignedTxn = xtxn.signTxn(myAccount.sk);
+      const txId = xtxn.txID().toString();
+      // Submit the transaction
+      await clientAlgorand.sendRawTransaction(rawSignedTxn).do();
+      // Wait for confirmation
+      const confirmedTxn = await this.waitForConfirmation(
+        clientAlgorand,
+        txId,
+        4,
+      );
+      //Get the completed Transaction
+      const mytxinfo = confirmedTxn.txn.txn;
+      const respOk = new TransferTokenResponse();
+      respOk.success = true;
+      respOk.title = 'Transfer token completed';
+      respOk.successMessage = 'The transfer token is complete';
+      respOk.responseData = { txId: txId, txDetail: mytxinfo };
+      return response.status(200).json(respOk);
+    } catch (e) {
+      return response.status(500).json(this.errorTransferAlgo(e));
+    }
+  }
+
+  async transferTokenItoI(body, response) {
+    try {
+      if (
+        body === null ||
+        body['indexTo'] === undefined ||
+        body['indexFrom'] === undefined ||
+        body['assetID'] === undefined ||
+        body['amount'] === undefined
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'body data not completed' }));
+      }
+      //client algorand
+      const clientAlgorand: AlgodClient = this.getClientAlgorand();
+      //get account From
+      const account: Record<string, unknown> =
+        await this.appService.getAccountByIndexDB(body['indexFrom']);
+      const myAccount: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(
+          account['mnemonic'].toString(),
+        );
+      //get account To
+      const account2: Record<string, unknown> =
+        await this.appService.getAccountByIndexDB(body['indexFrom']);
+      const myAccountTo: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(
+          account2['mnemonic'].toString(),
+        );
+      const accountInfoFrom = await clientAlgorand
+        .accountInformation(myAccount.addr)
+        .do();
+      const accountInfoTo = await clientAlgorand
+        .accountInformation(myAccountTo.addr)
+        .do();
+
+      //Load algos to optin and transfer
+      if (
+        (await this.loadAlgosToOptIn(accountInfoTo, body['assetID'])) ===
+        'error'
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'Fail opt-in load algos' }));
+      }
+      if (
+        (await this.optIn(account2['mnemonic'].toString(), body['assetID'])) ===
+        'error'
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'Fail opt-in tx' }));
+      }
+
+      // Transfer
+      // Construct the transaction
+      const params = await clientAlgorand.getTransactionParams().do();
+      const receiver = myAccountTo.addr;
       const enc = new TextEncoder();
       const note = enc.encode(body['msg'] || '');
       const amount = body['amount'];
