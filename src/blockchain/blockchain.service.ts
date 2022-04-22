@@ -10,6 +10,8 @@ import { BalanceResponse } from './models/balance_response.model';
 import { TransferAlgoResponse } from './models/transfer_algo_response.model';
 import { createHash } from 'crypto';
 import { NftCreationResponse } from './models/nft_creation_response.model';
+import { TransferTokenResponse } from './models/transfer_token_response.model';
+import { PrincipalTokensIdsResponse } from './models/principal_tokens_ids_response.model';
 
 @Injectable()
 export class BlockchainService {
@@ -203,6 +205,28 @@ export class BlockchainService {
         respPro.responseData = account;
         return response.status(200).json(respPro);
       }
+    } catch (e) {
+      return response.status(500).json(this.errorgetAddressAlgo(e));
+    }
+  }
+
+  async getPrincipalTokensIds(response) {
+    try {
+      const respPro = new PrincipalTokensIdsResponse();
+      respPro.success = true;
+      respPro.title = 'Tokens ID Get OK';
+      respPro.successMessage = 'Tokens ok';
+      respPro.responseData = {
+        usdt:
+          process.env.TESTNET_ALGO === 'true'
+            ? process.env.TEST_ID_USDT
+            : process.env.ID_USDT,
+        slva:
+          process.env.TESTNET_ALGO === 'true'
+            ? process.env.TEST_ID_SLVA
+            : process.env.ID_SLVA,
+      };
+      return response.status(200).json(respPro);
     } catch (e) {
       return response.status(500).json(this.errorgetAddressAlgo(e));
     }
@@ -648,6 +672,94 @@ export class BlockchainService {
     }
   }
 
+  //Transfer tokens and opt-in
+  async transferTokenAtoA(body, response) {
+    try {
+      if (
+        body === null ||
+        body['secretTo'] === undefined ||
+        body['secretFrom'] === undefined ||
+        body['assetID'] === undefined ||
+        body['amount'] === undefined
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'body data not completed' }));
+      }
+      //client algorand
+      const clientAlgorand: AlgodClient = this.getClientAlgorand();
+      //get account
+      const myAccount: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(body['secretFrom']);
+      //Check balance to tranfer
+      const accountInfo = await clientAlgorand
+        .accountInformation(myAccount.addr)
+        .do();
+      const accountTo: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(body['secretTo']);
+      //Check balance to tranfer
+      const accountInfoReceiver = await clientAlgorand
+        .accountInformation(accountTo.addr)
+        .do();
+      //Load algos to optin and transfer
+      if (
+        (await this.loadAlgosToOptIn(accountInfoReceiver, body['assetID'])) ===
+        'error'
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'Fail opt-in load algos' }));
+      }
+      if ((await this.optIn(body['secretTo'], body['assetID'])) === 'error') {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'Fail opt-in tx' }));
+      }
+
+      // Transfer
+      // Construct the transaction
+      const params = await clientAlgorand.getTransactionParams().do();
+      const receiver = accountTo.addr;
+      const enc = new TextEncoder();
+      const note = enc.encode(body['msg'] || '');
+      const amount = body['amount'];
+      const sender = myAccount.addr;
+      const revocationTarget = undefined;
+      const closeRemainderTo = undefined;
+      const xtxn = algosdk.makeAssetTransferTxnWithSuggestedParams(
+        sender,
+        receiver,
+        closeRemainderTo,
+        revocationTarget,
+        amount,
+        note,
+        body['assetID'],
+        params,
+      );
+      // Sign the transaction
+      const rawSignedTxn = xtxn.signTxn(myAccount.sk);
+      const txId = xtxn.txID().toString();
+      // Submit the transaction
+      await clientAlgorand.sendRawTransaction(rawSignedTxn).do();
+      // Wait for confirmation
+      const confirmedTxn = await this.waitForConfirmation(
+        clientAlgorand,
+        txId,
+        4,
+      );
+      //Get the completed Transaction
+      const mytxinfo = confirmedTxn.txn.txn;
+      const respOk = new TransferTokenResponse();
+      respOk.success = true;
+      respOk.title = 'Transfer token completed';
+      respOk.successMessage = 'The transfer token is complete';
+      respOk.responseData = { txId: txId, txDetail: mytxinfo };
+      return response.status(200).json(respOk);
+    } catch (e) {
+      return response.status(500).json(this.errorTransferAlgo(e));
+    }
+  }
+
   async waitForConfirmation(algodClient, txId, timeout): Promise<any> {
     if (algodClient == null || txId == null || timeout < 0) {
       throw new Error('Bad arguments');
@@ -714,6 +826,18 @@ export class BlockchainService {
     respPro.errorData = new ErrorResponse({
       errorCode: 1,
       errorMsg: 'Error in transfer',
+      errorData: err,
+    });
+    return respPro;
+  }
+
+  errorTransferToken(err) {
+    const respPro = new TransferAlgoResponse();
+    respPro.success = false;
+    respPro.title = 'Ups transfer not completed';
+    respPro.errorData = new ErrorResponse({
+      errorCode: 1,
+      errorMsg: 'Error in transfer token',
       errorData: err,
     });
     return respPro;
@@ -801,6 +925,200 @@ export class BlockchainService {
       // Submit the transaction
       await clientAlgorand.sendRawTransaction(signedTxn).do();
 
+      // Wait for confirmation
+      const confirmedTxn = await this.waitForConfirmation(
+        clientAlgorand,
+        txId,
+        4,
+      );
+      return txId;
+    } catch (e) {
+      console.error(e);
+      return 'error';
+    }
+  }
+
+  async loadAlgosToTransfer(recieverAccount: string) {
+    try {
+      //client algorand
+      const clientAlgorand: AlgodClient = this.getClientAlgorand();
+      //get account
+      const mnemonicHotWallet =
+        process.env.TESTNET_ALGO === 'true'
+          ? process.env.TEST_HOTWALLET
+          : process.env.HOTWALLET;
+      const myAccount: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(mnemonicHotWallet);
+      //Check balance to tranfer
+      const accountInfo = await clientAlgorand
+        .accountInformation(myAccount.addr)
+        .do();
+      if (algosdk.microalgosToAlgos(accountInfo.amount) < 1) {
+        return 'error';
+      }
+      const amountToLoad = 0.001;
+      // Construct the transaction
+      const params = await clientAlgorand.getTransactionParams().do();
+      const receiver = recieverAccount;
+      const enc = new TextEncoder();
+      const note = enc.encode('epio load');
+      const amount = algosdk.algosToMicroalgos(amountToLoad); //cambiar
+      const sender = myAccount.addr;
+      const txn = algosdk.makePaymentTxnWithSuggestedParams(
+        sender,
+        receiver,
+        amount,
+        undefined,
+        note,
+        params,
+      );
+
+      // Sign the transaction
+      const signedTxn = txn.signTxn(myAccount.sk);
+      const txId = txn.txID().toString();
+
+      // Submit the transaction
+      await clientAlgorand.sendRawTransaction(signedTxn).do();
+
+      // Wait for confirmation
+      const confirmedTxn = await this.waitForConfirmation(
+        clientAlgorand,
+        txId,
+        4,
+      );
+      return txId;
+    } catch (e) {
+      console.error(e);
+      return 'error';
+    }
+  }
+
+  async loadAlgosToOptIn(
+    recieverAccountInfo: Record<string, any>,
+    assetID: number,
+  ) {
+    try {
+      //client algorand
+      const clientAlgorand: AlgodClient = this.getClientAlgorand();
+      //get account
+      const mnemonicHotWallet =
+        process.env.TESTNET_ALGO === 'true'
+          ? process.env.TEST_HOTWALLET
+          : process.env.HOTWALLET;
+      const myAccount: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(mnemonicHotWallet);
+      //Check balance to tranfer
+      const accountInfo = await clientAlgorand
+        .accountInformation(myAccount.addr)
+        .do();
+      if (algosdk.microalgosToAlgos(accountInfo.amount) < 1) {
+        return 'error';
+      }
+      //validate if asset id exist in this account
+      let existAsset = false;
+      for (let i = 0; i < recieverAccountInfo.assets.length; i++) {
+        if (recieverAccountInfo.assets[i]['asset-id'] === assetID) {
+          existAsset = true;
+        }
+      }
+      let amountToLoad = 0;
+      if (!existAsset) {
+        //validate amount
+        if (recieverAccountInfo.assets.length === 0) {
+          amountToLoad = 0.2;
+        } else if (
+          algosdk.microalgosToAlgos(recieverAccountInfo.amount) <
+          (recieverAccountInfo.assets.length + 2) * 0.1
+        ) {
+          amountToLoad =
+            (recieverAccountInfo.assets.length + 2) * 0.1 -
+            algosdk.microalgosToAlgos(recieverAccountInfo.amount);
+        }
+      }
+      amountToLoad = amountToLoad + 0.002;
+      // Construct the transaction
+      const params = await clientAlgorand.getTransactionParams().do();
+      const receiver = recieverAccountInfo.address;
+      const enc = new TextEncoder();
+      const note = enc.encode('epio load');
+      const amount = algosdk.algosToMicroalgos(amountToLoad); //cambiar
+      const sender = myAccount.addr;
+      const txn = algosdk.makePaymentTxnWithSuggestedParams(
+        sender,
+        receiver,
+        amount,
+        undefined,
+        note,
+        params,
+      );
+
+      // Sign the transaction
+      const signedTxn = txn.signTxn(myAccount.sk);
+      const txId = txn.txID().toString();
+
+      // Submit the transaction
+      await clientAlgorand.sendRawTransaction(signedTxn).do();
+
+      // Wait for confirmation
+      const confirmedTxn = await this.waitForConfirmation(
+        clientAlgorand,
+        txId,
+        4,
+      );
+      return txId;
+    } catch (e) {
+      console.error(e);
+      return 'error';
+    }
+  }
+
+  async optIn(recieverAccount: string, assetID: number) {
+    try {
+      //client algorand
+      const clientAlgorand: AlgodClient = this.getClientAlgorand();
+      //get account
+      const myAccount: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(recieverAccount);
+      //Check balance to tranfer
+      const accountInfo = await clientAlgorand
+        .accountInformation(myAccount.addr)
+        .do();
+      //validate if asset id exist in this account
+      let existAsset = false;
+      for (let i = 0; i < accountInfo.assets.length; i++) {
+        if (accountInfo.assets[i]['asset-id'] === assetID) {
+          existAsset = true;
+        }
+      }
+      if (existAsset) {
+        return '';
+      }
+      //Init opt-in proccess
+      const params = await clientAlgorand.getTransactionParams().do();
+      const sender = myAccount.addr;
+      const recipient = sender;
+      const revocationTarget = undefined;
+      const closeRemainderTo = undefined;
+      const amount = 0;
+      const enc = new TextEncoder();
+      const note = enc.encode('opt-in');
+
+      // signing and sending "txn" allows sender to begin accepting asset specified by creator and index
+      const opttxn = algosdk.makeAssetTransferTxnWithSuggestedParams(
+        sender,
+        recipient,
+        closeRemainderTo,
+        revocationTarget,
+        amount,
+        note,
+        assetID,
+        params,
+      );
+
+      // Must be signed by the account wishing to opt in to the asset
+      const rawSignedTxn = opttxn.signTxn(myAccount.sk);
+      const txId = opttxn.txID().toString();
+      await clientAlgorand.sendRawTransaction(rawSignedTxn).do();
       // Wait for confirmation
       const confirmedTxn = await this.waitForConfirmation(
         clientAlgorand,

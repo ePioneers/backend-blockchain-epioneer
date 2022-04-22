@@ -41,6 +41,7 @@ export class AppService {
       const dataFile = await s3.getObject(options).promise();
       //Get data to file and decrypt
       const decryptData = await this.dencryptHD(dataFile.Body as Buffer);
+      //console.log(decryptData);
       return JSON.parse(decryptData);
     } catch (e) {
       if (e.code === 'NoSuchKey') {

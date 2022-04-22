@@ -18,6 +18,8 @@ import { TrasnferAlgoItoIDTO } from './models/transfer_algo_i_i_dto.model';
 import { TransferAlgoResponse } from './models/transfer_algo_response.model';
 import { createNFTByIdDTO } from './models/nft_creation_dto.model';
 import { NftCreationResponse } from './models/nft_creation_response.model';
+import { TransferTokenResponse } from './models/transfer_token_response.model';
+import { TrasnferTokenAtoADTO } from './models/transfer_token_a_a_dto.model';
 
 @ApiTags('Blockchain')
 @Controller('blockchain')
@@ -31,6 +33,15 @@ export class BlockchainController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async getRandomAccount(@Res() response) {
     return await this.blockchainService.getRandomAccountAlgo(response);
+  }
+
+  @Get('algorand/principalTokensIds')
+  @ApiOperation({ summary: 'Get ID of principal tokens supported' })
+  @ApiResponse({ status: 200, description: 'Successful' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async getPrincipalTokensIds(@Res() response) {
+    return await this.blockchainService.getPrincipalTokensIds(response);
   }
 
   @Get('algorand/balanceByAddress')
@@ -172,22 +183,22 @@ export class BlockchainController {
     return await this.blockchainService.createNFTById(body, response);
   }
 
-  /*@Post('algorand/transferNFTAtoA')
+  @Post('algorand/transferTokenAtoA')
   @ApiOperation({
-    summary: 'Send transfer transaction NFT with mnemonic to address',
+    summary: 'Send transfer transaction Token with mnemonic to address',
   })
   @ApiResponse({
     status: 200,
     description: 'Successful',
-    type: TransferNFTResponse,
+    type: TransferTokenResponse,
   })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
-  async transferNFTAtoA(@Body() body: TrasnferNFTAtoADTO, @Res() response) {
-    return await this.blockchainService.transferNFTAtoA(body, response);
+  async transferTokenAtoA(@Body() body: TrasnferTokenAtoADTO, @Res() response) {
+    return await this.blockchainService.transferTokenAtoA(body, response);
   }
 
-  @Post('algorand/transferNFTItoI')
+  /*@Post('algorand/transferNFTItoI')
   @ApiOperation({
     summary: 'Send transfer transaction NFT index to index user data base',
   })
