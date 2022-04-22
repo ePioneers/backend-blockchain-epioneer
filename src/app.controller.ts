@@ -6,7 +6,7 @@ import { GeneralResponse } from './models/general_response.model';
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
-  @Get("status")
+  @Get('status')
   getStatus(): GeneralResponse {
     return this.appService.statusAPI();
   }
