@@ -759,6 +759,13 @@ export class BlockchainService {
           .status(400)
           .json(this.errorTransferToken({ error: 'Fail opt-in tx' }));
       }
+      if ((await this.loadAlgosToTransfer(myAccount.addr)) === 'error') {
+        return response
+          .status(400)
+          .json(
+            this.errorTransferToken({ error: 'Fail load algos to transfer' }),
+          );
+      }
 
       // Transfer
       // Construct the transaction
@@ -862,6 +869,13 @@ export class BlockchainService {
           .status(400)
           .json(this.errorTransferToken({ error: 'Fail opt-in tx' }));
       }
+      if ((await this.loadAlgosToTransfer(myAccount.addr)) === 'error') {
+        return response
+          .status(400)
+          .json(
+            this.errorTransferToken({ error: 'Fail load algos to transfer' }),
+          );
+      }
 
       // Transfer
       // Construct the transaction
@@ -961,6 +975,13 @@ export class BlockchainService {
           .status(400)
           .json(this.errorTransferToken({ error: 'Fail opt-in tx' }));
       }
+      if ((await this.loadAlgosToTransfer(myAccount.addr)) === 'error') {
+        return response
+          .status(400)
+          .json(
+            this.errorTransferToken({ error: 'Fail load algos to transfer' }),
+          );
+      }
 
       // Transfer
       // Construct the transaction
@@ -1053,6 +1074,13 @@ export class BlockchainService {
         return response
           .status(400)
           .json(this.errorTransferToken({ error: 'Fail opt-in tx' }));
+      }
+      if ((await this.loadAlgosToTransfer(myAccount.addr)) === 'error') {
+        return response
+          .status(400)
+          .json(
+            this.errorTransferToken({ error: 'Fail load algos to transfer' }),
+          );
       }
 
       // Transfer
