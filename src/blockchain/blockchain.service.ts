@@ -379,16 +379,21 @@ export class BlockchainService {
       const accountInfo = await clientAlgorand
         .accountInformation(myAccount.addr)
         .do();
-      if (
-        algosdk.microalgosToAlgos(accountInfo.amount) < 0.001 ||
-        algosdk.microalgosToAlgos(accountInfo.amount) <
-          +(body['amount'] + 0.001)
-      ) {
+      if (algosdk.microalgosToAlgos(accountInfo.amount) < +body['amount']) {
         return response.status(400).json(
           this.errorTransferAlgo({
             error: 'you do not have sufficient balance for this transaction',
           }),
         );
+      }
+
+      //Load algos to transfer
+      if ((await this.loadAlgosToTransfer(myAccount.addr)) === 'error') {
+        return response
+          .status(400)
+          .json(
+            this.errorTransferToken({ error: 'Fail load algos to transfer' }),
+          );
       }
 
       //transfer
@@ -1087,6 +1092,87 @@ export class BlockchainService {
       // Construct the transaction
       const params = await clientAlgorand.getTransactionParams().do();
       const receiver = accountTo.addr;
+      const enc = new TextEncoder();
+      const note = enc.encode(body['msg'] || '');
+      //load decimals of asset
+      const decimalAmount = await this.compactAmountToMicroAmount(
+        body['amount'],
+        body['assetID'],
+      );
+      const amount = decimalAmount;
+      const sender = myAccount.addr;
+      const revocationTarget = undefined;
+      const closeRemainderTo = undefined;
+      const xtxn = algosdk.makeAssetTransferTxnWithSuggestedParams(
+        sender,
+        receiver,
+        closeRemainderTo,
+        revocationTarget,
+        amount,
+        note,
+        body['assetID'],
+        params,
+      );
+      // Sign the transaction
+      const rawSignedTxn = xtxn.signTxn(myAccount.sk);
+      const txId = xtxn.txID().toString();
+      // Submit the transaction
+      await clientAlgorand.sendRawTransaction(rawSignedTxn).do();
+      // Wait for confirmation
+      const confirmedTxn = await this.waitForConfirmation(
+        clientAlgorand,
+        txId,
+        4,
+      );
+      //Get the completed Transaction
+      const mytxinfo = confirmedTxn.txn.txn;
+      const respOk = new TransferTokenResponse();
+      respOk.success = true;
+      respOk.title = 'Transfer token completed';
+      respOk.successMessage = 'The transfer token is complete';
+      respOk.responseData = { txId: txId, txDetail: mytxinfo };
+      return response.status(200).json(respOk);
+    } catch (e) {
+      console.log(e);
+      return response.status(500).json(this.errorTransferAlgo(e.code));
+    }
+  }
+
+  async transferTokenItoA2(body, response) {
+    try {
+      if (
+        body === null ||
+        body['indexFrom'] === undefined ||
+        body['addressTo'] === undefined ||
+        body['assetID'] === undefined ||
+        body['amount'] === undefined
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferToken({ error: 'body data not completed' }));
+      }
+      //client algorand
+      const clientAlgorand: AlgodClient = this.getClientAlgorand();
+      //get account From
+      const account: Record<string, unknown> =
+        await this.appService.getAccountByIndexDB(body['indexFrom']);
+      const myAccount: algosdk.Account =
+        await this.appService.getAccountbyMnemonic(
+          account['mnemonic'].toString(),
+        );
+      //get account To
+      const receiver = body['addressTo'];
+      if ((await this.loadAlgosToTransfer(receiver)) === 'error') {
+        return response
+          .status(400)
+          .json(
+            this.errorTransferToken({ error: 'Fail load algos to transfer' }),
+          );
+      }
+
+      // Transfer
+      // Construct the transaction
+      const params = await clientAlgorand.getTransactionParams().do();
       const enc = new TextEncoder();
       const note = enc.encode(body['msg'] || '');
       //load decimals of asset

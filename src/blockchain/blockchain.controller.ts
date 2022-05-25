@@ -23,6 +23,7 @@ import { TrasnferTokenAtoADTO } from './models/transfer_token_a_a_dto.model';
 import { TrasnferTokenItoIDTO } from './models/transfer_token_i_i_dto.model';
 import { TrasnferTokenAtoIDTO } from './models/transfer_token_a_i_dto.model';
 import { TransferTokenItoADTO } from './models/transfer_token_i_a_dto.model';
+import { TransferTokenItoA2DTO } from './models/transfer_token_i_a2_dto.model';
 
 @ApiTags('Blockchain')
 @Controller('blockchain')
@@ -263,5 +264,21 @@ export class BlockchainController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async transferNFTItoA(@Body() body: TransferTokenItoADTO, @Res() response) {
     return await this.blockchainService.transferTokenItoA(body, response);
+  }
+
+  @Post('algorand/transferTokenItoA2')
+  @ApiOperation({
+    summary:
+      'Send transfer transaction token with id user data base to address receiver',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful',
+    type: TransferTokenResponse,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async transferNFTItoA2(@Body() body: TransferTokenItoA2DTO, @Res() response) {
+    return await this.blockchainService.transferTokenItoA2(body, response);
   }
 }
