@@ -6,16 +6,19 @@ export class BalanceAsset {
     balance,
     creator,
     isFrozen,
+    balanceCompact,
   }: {
     assetId?: number;
     balance?: number;
     creator?: string;
     isFrozen?: boolean;
+    balanceCompact?: number;
   } = {}) {
     this.assetId = assetId;
     this.balance = balance;
     this.creator = creator;
     this.isFrozen = isFrozen;
+    this.balanceCompact = balanceCompact;
   }
 
   @ApiProperty({
@@ -24,8 +27,14 @@ export class BalanceAsset {
   })
   assetId: number;
 
-  @ApiProperty({ example: 2.974, description: 'Balance of Asset' })
+  @ApiProperty({
+    example: 2.974,
+    description: 'Balance of Asset - Micro Token',
+  })
   balance: number;
+
+  @ApiProperty({ example: 2.974, description: 'Balance of Asset' })
+  balanceCompact: number;
 
   @ApiProperty({
     example: '5SR4B6HJKRQ7RVZYXLXQEWZX3SCXEAKPZSYXLWVQUB2S6HJNDCVF7XAJWP',
