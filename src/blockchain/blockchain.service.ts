@@ -137,6 +137,10 @@ export class BlockchainService {
             balance: itemBalanceAsset['amount'],
             creator: itemBalanceAsset['creator'],
             isFrozen: itemBalanceAsset['is-frozen'],
+            balanceCompact: await this.microAmountToCompactAmount(
+              itemBalanceAsset['amount'],
+              itemBalanceAsset['asset-id'],
+            ),
           }),
         );
       }
