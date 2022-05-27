@@ -137,7 +137,7 @@ export class BlockchainService {
             balance: itemBalanceAsset['amount'],
             creator: itemBalanceAsset['creator'],
             isFrozen: itemBalanceAsset['is-frozen'],
-            balanceCompact: await this.microAmountToCompactAmount(
+            balanceCompact: await this.microAmountToCompactAmountLocal(
               itemBalanceAsset['amount'],
               itemBalanceAsset['asset-id'],
             ),
@@ -704,14 +704,13 @@ export class BlockchainService {
       // Sign the transaction
       const rawSignedTxn = txn.signTxn(myAccount.sk);
       const txId = txn.txID().toString();
-      const tx = await clientAlgorand.sendRawTransaction(rawSignedTxn).do();
+      await clientAlgorand.sendRawTransaction(rawSignedTxn).do();
       let assetID = null;
       // wait for transaction to be confirmed
       const ptx = await this.waitForConfirmation(clientAlgorand, txId, 4);
       // Get the new asset's information from the creator account
       assetID = ptx['asset-index'];
       //Get the completed Transaction
-      const mytxinfo = ptx.txn.txn;
       const respOk = new NftCreationResponse();
       respOk.success = true;
       respOk.title = 'NFT creation completed';
@@ -1616,6 +1615,28 @@ export class BlockchainService {
   ): Promise<number> {
     const result = await this.getAssetInfo(assetID);
     const decimalsAsset = result.assets[0].params.decimals;
+    const strRatio = '1e' + decimalsAsset;
+    return microAmount / Number(strRatio);
+  }
+
+  async microAmountToCompactAmountLocal(
+    microAmount: number,
+    assetID: number,
+  ): Promise<number> {
+    const usdtID: string =
+      process.env.TESTNET_ALGO === 'true'
+        ? process.env.TEST_ID_USDT
+        : process.env.ID_USDT;
+    const slvaID: string =
+      process.env.TESTNET_ALGO === 'true'
+        ? process.env.TEST_ID_SLVA
+        : process.env.ID_SLVA;
+    let decimalsAsset = 0;
+    if (assetID.toString() === usdtID) {
+      decimalsAsset = 6;
+    } else if (assetID.toString() === slvaID) {
+      decimalsAsset = 8;
+    }
     const strRatio = '1e' + decimalsAsset;
     return microAmount / Number(strRatio);
   }
