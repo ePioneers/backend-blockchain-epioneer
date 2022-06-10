@@ -24,12 +24,14 @@ import { TrasnferTokenItoIDTO } from './models/transfer_token_i_i_dto.model';
 import { TrasnferTokenAtoIDTO } from './models/transfer_token_a_i_dto.model';
 import { TransferTokenItoADTO } from './models/transfer_token_i_a_dto.model';
 import { TransferTokenItoA2DTO } from './models/transfer_token_i_a2_dto.model';
+import { StacksBalanceResponse } from './models/stacks_balance_response.model';
 
 @ApiTags('Blockchain')
 @Controller('blockchain')
 export class BlockchainController {
   constructor(private readonly blockchainService: BlockchainService) {}
 
+  //Algorand
   @Get('algorand/randomAccount')
   @ApiOperation({ summary: 'Get algorand random account' })
   @ApiResponse({ status: 200, description: 'Successful' })
@@ -280,5 +282,69 @@ export class BlockchainController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async transferNFTItoA2(@Body() body: TransferTokenItoA2DTO, @Res() response) {
     return await this.blockchainService.transferTokenItoA2(body, response);
+  }
+
+  //Stacks
+  @Get('stacks/randomAccount')
+  @ApiOperation({ summary: 'Get stacks random account' })
+  @ApiResponse({ status: 200, description: 'Successful' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async getStacksRandomAccount(@Res() response) {
+    return await this.blockchainService.getRandomAccountStacks(response);
+  }
+
+  @Get('stacks/balanceByAddress')
+  @ApiOperation({
+    summary: 'Get balance of an account in the Stacks blockchain',
+  })
+  @ApiQuery({
+    name: 'account',
+    required: true,
+    description: 'address of the account to be consulted',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful',
+    type: StacksBalanceResponse,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async getStacksBalanceA(@Query() dataQuery: any, @Res() response) {
+    return await this.blockchainService.getStacksBalanceA(dataQuery, response);
+  }
+
+  @Get('stacks/balanceByIndex')
+  @ApiOperation({
+    summary: 'Get balance of an index in the Stacks blockchain',
+  })
+  @ApiQuery({
+    name: 'id',
+    required: true,
+    description: 'index id of user in Database epioneer',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful',
+    type: StacksBalanceResponse,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async getStacksBalanceI(@Query() dataQuery: any, @Res() response) {
+    return await this.blockchainService.getStacksBalanceI(dataQuery, response);
+  }
+
+  @Get('stacks/addressById')
+  @ApiOperation({ summary: 'Get address stacks by id DB - HD Wallet' })
+  @ApiQuery({ name: 'id', required: true, description: 'Id of user DB' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful',
+    type: AddressByIdResponse,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async addressStacksById(@Query() dataQuery: any, @Res() response) {
+    return await this.blockchainService.getStacksAddressI(dataQuery, response);
   }
 }
