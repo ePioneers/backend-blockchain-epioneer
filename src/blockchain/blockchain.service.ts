@@ -12,6 +12,25 @@ import { createHash } from 'crypto';
 import { NftCreationResponse } from './models/nft_creation_response.model';
 import { TransferTokenResponse } from './models/transfer_token_response.model';
 import { PrincipalTokensIdsResponse } from './models/principal_tokens_ids_response.model';
+import {
+  Configuration,
+  AccountsApi,
+  FaucetsApi,
+} from '@stacks/blockchain-api-client';
+import { fetch } from 'cross-fetch';
+import {
+  makeRandomPrivKey,
+  privateKeyToString,
+  getAddressFromPrivateKey,
+  TransactionVersion,
+  createStacksPrivateKey,
+} from '@stacks/transactions';
+import { StacksBalanceResponse } from './models/stacks_balance_response.model';
+import { StacksBalance } from './models/stacks_balance.model';
+import * as bip39 from 'bip39';
+import * as bitcoin from 'bitcoinjs-lib';
+import BIP32Factory from 'bip32';
+import * as ecc from 'tiny-secp256k1';
 
 @Injectable()
 export class BlockchainService {
@@ -1661,5 +1680,318 @@ export class BlockchainService {
       console.error(e);
       throw new Error(e);
     }
+  }
+
+  //Stacks
+  async getRandomAccountStacks(response) {
+    try {
+      const privateKey = makeRandomPrivKey();
+      let stacksAddress;
+      if (process.env.TESTNET_ALGO === 'true') {
+        stacksAddress = getAddressFromPrivateKey(
+          privateKeyToString(privateKey),
+          TransactionVersion.Testnet,
+        );
+      } else {
+        stacksAddress = getAddressFromPrivateKey(
+          privateKeyToString(privateKey),
+        );
+      }
+      const resBody = {
+        address: stacksAddress,
+        pk: privateKeyToString(privateKey),
+      };
+      const account: Record<string, unknown> = resBody;
+
+      if (account === {}) {
+        return response.status(500).json(this.errorgetAddressAlgo({}));
+      } else {
+        const respPro = new AddressByIdResponse();
+        respPro.success = true;
+        respPro.title = 'Account Stacks Get OK';
+        respPro.successMessage = 'Account has created';
+        respPro.responseData = account;
+        return response.status(200).json(respPro);
+      }
+    } catch (e) {
+      return response.status(500).json(this.errorgetAddressAlgo(e));
+    }
+  }
+
+  async getStacksBalanceA(dataQuery: Record<string, unknown>, response) {
+    let respPro: StacksBalanceResponse;
+    if (!dataQuery) {
+      respPro = new StacksBalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 0,
+          errorMsg:
+            'No se envió cuenta para verificar el balance, por favor enviar cuenta.',
+          errorData: 'Missing query: account',
+        }),
+      });
+      return response.status(200).json(respPro);
+    } else if (!dataQuery['account']) {
+      respPro = new StacksBalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 0,
+          errorMsg:
+            'No se envió cuenta para verificar el balance, por favor enviar cuenta.',
+          errorData: 'Missing query: account',
+        }),
+      });
+      return response.status(200).json(respPro);
+    }
+
+    try {
+      let apiConfig;
+      if (process.env.TESTNET_ALGO === 'true') {
+        apiConfig = new Configuration({
+          fetchApi: fetch,
+          basePath: process.env.TESTNET_STACKS,
+        });
+      } else {
+        apiConfig = new Configuration({
+          fetchApi: fetch,
+          basePath: process.env.MAINNET_STACKS,
+        });
+      }
+      const accounts = new AccountsApi(apiConfig);
+      const balances = await accounts.getAccountBalance({
+        principal: dataQuery['account'].toString(),
+      });
+      respPro = new StacksBalanceResponse({
+        success: true,
+        error: false,
+        responseData: new StacksBalance({
+          account: dataQuery['account'].toString(),
+          balanceStacks: balances,
+        }),
+      });
+      return response.status(200).json(respPro);
+    } catch (e) {
+      respPro = new StacksBalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 9,
+          errorMsg: 'Ocurrió un error en el servidor, comuniquese con soporte.',
+          errorData: e,
+        }),
+      });
+      console.log(e);
+      return response.status(500).json(respPro);
+    }
+  }
+
+  async getStacksBalanceI(dataQuery: Record<string, unknown>, response) {
+    let respPro: StacksBalanceResponse;
+    if (!dataQuery) {
+      respPro = new StacksBalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 0,
+          errorMsg:
+            'No se envió cuenta para verificar el balance, por favor enviar cuenta.',
+          errorData: 'Missing query: id',
+        }),
+      });
+      return response.status(200).json(respPro);
+    } else if (!dataQuery['id']) {
+      respPro = new StacksBalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 0,
+          errorMsg:
+            'No se envió cuenta para verificar el balance, por favor enviar cuenta.',
+          errorData: 'Missing query: id',
+        }),
+      });
+      return response.status(200).json(respPro);
+    }
+
+    if (+dataQuery['id'] < 0) {
+      return response.status(500).json(this.errorgetAddressAlgo({}));
+    }
+    //convert index to account stacks
+    const accountFromI = await this.convertIndexToAccountStacks(
+      +dataQuery['id'],
+    );
+
+    try {
+      let apiConfig;
+      if (process.env.TESTNET_ALGO === 'true') {
+        apiConfig = new Configuration({
+          fetchApi: fetch,
+          basePath: process.env.TESTNET_STACKS,
+        });
+      } else {
+        apiConfig = new Configuration({
+          fetchApi: fetch,
+          basePath: process.env.MAINNET_STACKS,
+        });
+      }
+      const accounts = new AccountsApi(apiConfig);
+      const balances = await accounts.getAccountBalance({
+        principal: accountFromI,
+      });
+      respPro = new StacksBalanceResponse({
+        success: true,
+        error: false,
+        responseData: new StacksBalance({
+          account: accountFromI,
+          balanceStacks: balances,
+        }),
+      });
+      return response.status(200).json(respPro);
+    } catch (e) {
+      respPro = new StacksBalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 9,
+          errorMsg: 'Ocurrió un error en el servidor, comuniquese con soporte.',
+          errorData: e,
+        }),
+      });
+      console.log(e);
+      return response.status(500).json(respPro);
+    }
+  }
+
+  async getStacksAddressI(dataQuery: Record<string, unknown>, response) {
+    let respPro: StacksBalanceResponse;
+    if (!dataQuery) {
+      respPro = new StacksBalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 0,
+          errorMsg: 'No se envió id, por favor enviar id.',
+          errorData: 'Missing query: id',
+        }),
+      });
+      return response.status(200).json(respPro);
+    } else if (!dataQuery['id']) {
+      respPro = new StacksBalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 0,
+          errorMsg: 'No se envió id',
+          errorData: 'Missing query: id',
+        }),
+      });
+      return response.status(200).json(respPro);
+    }
+
+    try {
+      if (+dataQuery['id'] < 0) {
+        return response.status(500).json(this.errorgetAddressAlgo({}));
+      }
+      //convert index to account stacks
+      const accountFromI = await this.convertIndexToAccountStacks(
+        +dataQuery['id'],
+      );
+
+      const respPro2 = new AddressByIdResponse();
+      respPro2.success = true;
+      respPro2.title = 'Address Get OK';
+      respPro2.successMessage = 'Account has ben recupered';
+      respPro2.responseData = {
+        address: accountFromI,
+        index: dataQuery['id'],
+      };
+      return response.status(200).json(respPro2);
+    } catch (e) {
+      return response.status(500).json(this.errorgetAddressAlgo(e));
+    }
+  }
+
+  async convertIndexToAccountStacks(index: number): Promise<string> {
+    const pkAccountBTC = this.getPKBTC(index);
+    //convert btc to stacks account
+    let stacksAddress;
+    if (process.env.TESTNET_ALGO === 'true') {
+      stacksAddress = getAddressFromPrivateKey(
+        privateKeyToString(createStacksPrivateKey(pkAccountBTC)),
+        TransactionVersion.Testnet,
+      );
+    } else {
+      stacksAddress = getAddressFromPrivateKey(
+        privateKeyToString(createStacksPrivateKey(pkAccountBTC)),
+      );
+    }
+    return stacksAddress;
+  }
+
+  getPKBTC(index: number): string {
+    const mnemonic: string = process.env.SEEDBTC;
+    let route;
+    if (process.env.TESTNET_ALGO === 'true') {
+      route = "m/44'/1'/0'/0";
+    } else {
+      route = "m/44'/0'/0'/0";
+    }
+    let redBTC;
+    if (process.env.TESTNET_ALGO === 'true') {
+      redBTC = bitcoin.networks.testnet;
+    } else {
+      redBTC = bitcoin.networks.bitcoin;
+    }
+
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const bip32 = BIP32Factory(ecc);
+    const root = bip32.fromSeed(seed, redBTC);
+
+    const accountpath = route;
+    const account = root.derivePath(accountpath);
+    const APIChild = account.derive(index); // can now withdraw whatever the user paid
+    //console.log('Pk:', APIChild.privateKey.toString('hex'));
+    //console.log('APIChild address:', this.getAddress(APIChild, redBTC));
+    //console.log('APIChild.toWIF():', APIChild.toWIF());
+
+    return APIChild.privateKey.toString('hex');
+  }
+
+  getAddressSegWitBTC(index: number): string {
+    const mnemonic: string = process.env.SEEDBTC;
+    let route;
+    if (process.env.TESTNET_ALGO === 'true') {
+      route = "m/44'/1'/0'/0";
+    } else {
+      route = "m/44'/0'/0'/0";
+    }
+    let redBTC;
+    if (process.env.TESTNET_ALGO === 'true') {
+      redBTC = bitcoin.networks.testnet;
+    } else {
+      redBTC = bitcoin.networks.bitcoin;
+    }
+
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const bip32 = BIP32Factory(ecc);
+    const root = bip32.fromSeed(seed, redBTC);
+
+    const accountpath = route;
+    const account = root.derivePath(accountpath);
+    const APIChild = account.derive(index); // can now withdraw whatever the user paid
+    //console.log('Pk:', APIChild.privateKey.toString('hex'));
+    //console.log('APIChild address:', this.getAddress(APIChild, redBTC));
+    //console.log('APIChild.toWIF():', APIChild.toWIF());
+
+    return this.getAddress(APIChild, redBTC);
+  }
+
+  getAddress(node, network) {
+    return bitcoin.payments.p2sh({
+      redeem: bitcoin.payments.p2wpkh({ pubkey: node.publicKey, network }),
+      network,
+    }).address;
   }
 }
