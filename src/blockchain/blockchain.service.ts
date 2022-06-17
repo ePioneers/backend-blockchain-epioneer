@@ -24,6 +24,10 @@ import {
   getAddressFromPrivateKey,
   TransactionVersion,
   createStacksPrivateKey,
+  makeSTXTokenTransfer,
+  broadcastTransaction,
+  AnchorMode,
+  SignedTokenTransferOptions,
 } from '@stacks/transactions';
 import { StacksBalanceResponse } from './models/stacks_balance_response.model';
 import { StacksBalance } from './models/stacks_balance.model';
@@ -31,6 +35,7 @@ import * as bip39 from 'bip39';
 import * as bitcoin from 'bitcoinjs-lib';
 import BIP32Factory from 'bip32';
 import * as ecc from 'tiny-secp256k1';
+import { TransferSTXResponse } from './models/transfer_stx_response.model';
 
 @Injectable()
 export class BlockchainService {
@@ -1768,7 +1773,13 @@ export class BlockchainService {
         error: false,
         responseData: new StacksBalance({
           account: dataQuery['account'].toString(),
-          balanceStacks: balances,
+          balanceStacks: {
+            compact_stx_balance: this.microAmountToCompactAmountGeneric(
+              +balances.stx.balance,
+              +process.env.DECIMALS_STX,
+            ),
+            ...balances,
+          },
         }),
       });
       return response.status(200).json(respPro);
@@ -1845,7 +1856,13 @@ export class BlockchainService {
         error: false,
         responseData: new StacksBalance({
           account: accountFromI,
-          balanceStacks: balances,
+          balanceStacks: {
+            compact_stx_balance: this.microAmountToCompactAmountGeneric(
+              +balances.stx.balance,
+              +process.env.DECIMALS_STX,
+            ),
+            ...balances,
+          },
         }),
       });
       return response.status(200).json(respPro);
@@ -1910,6 +1927,64 @@ export class BlockchainService {
       return response.status(200).json(respPro2);
     } catch (e) {
       return response.status(500).json(this.errorgetAddressAlgo(e));
+    }
+  }
+
+  async transferSTXPKtoA(body, response) {
+    try {
+      if (
+        body === null ||
+        body['addressTo'] === undefined ||
+        body['secretFrom'] === undefined ||
+        body['amount'] === undefined
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferAlgo({ error: 'body data not completed' }));
+      }
+
+      // Private key from hex string
+      const key = body['secretFrom'];
+      //const privateKey = createStacksPrivateKey(key);
+      const txOptions2: SignedTokenTransferOptions = {
+        recipient: body['addressTo'],
+        amount: this.compactAmountToMicroAmountGeneric(
+          +body['amount'],
+          +process.env.DECIMALS_STX,
+        ),
+        senderKey: key,
+        network: process.env.TESTNET_ALGO === 'true' ? 'testnet' : 'mainnet',
+        memo: body['msg'],
+        //nonce: 0n, // set a nonce manually if you don't want builder to fetch from a Stacks node
+        fee: 200n, // set a tx fee if you don't want the builder to estimate
+        anchorMode: AnchorMode.Any,
+      };
+
+      const transaction = await makeSTXTokenTransfer(txOptions2);
+
+      // to see the raw serialized tx
+      const serializedTx = transaction.serialize().toString('hex');
+
+      // broadcasting transaction to the specified network
+      const broadcastResponse = await broadcastTransaction(transaction);
+      const txId = broadcastResponse.txid;
+
+      const respOk = new TransferSTXResponse();
+      respOk.success = true;
+      respOk.title = 'Transfer completed';
+      respOk.successMessage =
+        'The transfer is indexed, please validate the transaction in a few minutes';
+      if (broadcastResponse.error) {
+        return response.status(400).json(
+          this.errorTransferAlgo({
+            error: broadcastResponse,
+          }),
+        );
+      }
+      respOk.responseData = { txId: txId, txDetail: broadcastResponse };
+      return response.status(200).json(respOk);
+    } catch (e) {
+      return response.status(500).json(this.errorTransferAlgo(e));
     }
   }
 
@@ -1993,5 +2068,26 @@ export class BlockchainService {
       redeem: bitcoin.payments.p2wpkh({ pubkey: node.publicKey, network }),
       network,
     }).address;
+  }
+
+  microAmountToCompactAmountGeneric(
+    microAmount: number,
+    decimals: number,
+  ): number {
+    const strRatio = '1e' + decimals;
+    return microAmount / Number(strRatio);
+  }
+
+  compactAmountToMicroAmountGeneric(
+    compactAmount: number,
+    decimals: number,
+  ): number {
+    if (decimals > 0) {
+      const strRatio = '1e' + decimals;
+      const amountResult: number = compactAmount * Number(strRatio);
+      return Math.round(amountResult);
+    } else {
+      return compactAmount;
+    }
   }
 }
