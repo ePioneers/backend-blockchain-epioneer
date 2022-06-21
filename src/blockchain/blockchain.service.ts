@@ -16,6 +16,7 @@ import {
   Configuration,
   AccountsApi,
   FaucetsApi,
+  TransactionsApi,
 } from '@stacks/blockchain-api-client';
 import { fetch } from 'cross-fetch';
 import {
@@ -36,6 +37,7 @@ import * as bitcoin from 'bitcoinjs-lib';
 import BIP32Factory from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import { TransferSTXResponse } from './models/transfer_stx_response.model';
+import { StacksStatusTransactionResponse } from './models/stacks_status_transaction_response.model';
 
 @Injectable()
 export class BlockchainService {
@@ -2120,6 +2122,66 @@ export class BlockchainService {
       return response.status(200).json(respOk);
     } catch (e) {
       return response.status(500).json(this.errorTransferAlgo(e));
+    }
+  }
+
+  async getStatusTransactionStacksByTxId(
+    dataQuery: Record<string, unknown>,
+    response,
+  ) {
+    let respPro: StacksBalanceResponse;
+    if (!dataQuery) {
+      respPro = new StacksBalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 0,
+          errorMsg: 'No se envió txId, por favor enviar txID.',
+          errorData: 'Missing query: txID',
+        }),
+      });
+      return response.status(200).json(respPro);
+    } else if (!dataQuery['tx']) {
+      respPro = new StacksBalanceResponse({
+        success: false,
+        error: true,
+        errorData: new ErrorResponse({
+          errorCode: 0,
+          errorMsg: 'No se envió txId',
+          errorData: 'Missing query: txId',
+        }),
+      });
+      return response.status(200).json(respPro);
+    }
+
+    try {
+      let apiConfig;
+      if (process.env.TESTNET_ALGO === 'true') {
+        apiConfig = new Configuration({
+          fetchApi: fetch,
+          basePath: process.env.TESTNET_STACKS,
+        });
+      } else {
+        apiConfig = new Configuration({
+          fetchApi: fetch,
+          basePath: process.env.MAINNET_STACKS,
+        });
+      }
+      //get status of transaction
+      const transactions = new TransactionsApi(apiConfig);
+      const txId: string = dataQuery['tx'].toString();
+      const txInfo = await transactions.getTransactionById({
+        txId,
+      });
+
+      const respPro2 = new StacksStatusTransactionResponse();
+      respPro2.success = true;
+      respPro2.title = 'Status recupered';
+      respPro2.successMessage = 'Please validate the status of transaction';
+      respPro2.responseData = txInfo;
+      return response.status(200).json(respPro2);
+    } catch (e) {
+      return response.status(500).json(this.errorgetAddressAlgo(e));
     }
   }
 
