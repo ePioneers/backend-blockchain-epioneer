@@ -27,6 +27,8 @@ import { TransferTokenItoA2DTO } from './models/transfer_token_i_a2_dto.model';
 import { StacksBalanceResponse } from './models/stacks_balance_response.model';
 import { TrasnferSTXPKtoADTO } from './models/transfer_stx_pk_a_dto.model';
 import { TransferSTXResponse } from "./models/transfer_stx_response.model";
+import { TrasnferSTXItoADTO } from "./models/transfer_stx_i_a_dto.model";
+import { TrasnferSTXItoIDTO } from "./models/transfer_stx_i_i_dto.model";
 
 @ApiTags('Blockchain')
 @Controller('blockchain')
@@ -363,5 +365,35 @@ export class BlockchainController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async transferSTXPKtoA(@Body() body: TrasnferSTXPKtoADTO, @Res() response) {
     return await this.blockchainService.transferSTXPKtoA(body, response);
+  }
+
+  @Post('stacks/transferSTX-ItoA')
+  @ApiOperation({
+    summary: 'Send transfer transaction Stacks with index to address',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful',
+    type: TransferSTXResponse,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async transferSTXItoA(@Body() body: TrasnferSTXItoADTO, @Res() response) {
+    return await this.blockchainService.transferSTXItoA(body, response);
+  }
+
+  @Post('stacks/transferSTX-ItoI')
+  @ApiOperation({
+    summary: 'Send transfer transaction Stacks with index to index',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful',
+    type: TransferSTXResponse,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async transferSTXItoI(@Body() body: TrasnferSTXItoIDTO, @Res() response) {
+    return await this.blockchainService.transferSTXItoI(body, response);
   }
 }
