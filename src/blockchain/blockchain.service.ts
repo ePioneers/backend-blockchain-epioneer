@@ -1988,6 +1988,141 @@ export class BlockchainService {
     }
   }
 
+  async transferSTXItoA(body, response) {
+    try {
+      if (
+        body === null ||
+        body['addressTo'] === undefined ||
+        body['indexFrom'] === undefined ||
+        body['amount'] === undefined
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferAlgo({ error: 'body data not completed' }));
+      }
+
+      //get pk to index
+      if (+body['indexFrom'] < 0) {
+        return response.status(500).json(this.errorgetAddressAlgo({}));
+      }
+      //convert index to account stacks
+      const priKey = this.convertIndexToPKStacks(+body['indexFrom']);
+
+      // Private key from hex string
+      const key = priKey;
+      //const privateKey = createStacksPrivateKey(key);
+      const txOptions2: SignedTokenTransferOptions = {
+        recipient: body['addressTo'],
+        amount: this.compactAmountToMicroAmountGeneric(
+          +body['amount'],
+          +process.env.DECIMALS_STX,
+        ),
+        senderKey: key,
+        network: process.env.TESTNET_ALGO === 'true' ? 'testnet' : 'mainnet',
+        memo: body['msg'],
+        //nonce: 0n, // set a nonce manually if you don't want builder to fetch from a Stacks node
+        fee: 200n, // set a tx fee if you don't want the builder to estimate
+        anchorMode: AnchorMode.Any,
+      };
+
+      const transaction = await makeSTXTokenTransfer(txOptions2);
+
+      // to see the raw serialized tx
+      const serializedTx = transaction.serialize().toString('hex');
+
+      // broadcasting transaction to the specified network
+      const broadcastResponse = await broadcastTransaction(transaction);
+      const txId = broadcastResponse.txid;
+
+      const respOk = new TransferSTXResponse();
+      respOk.success = true;
+      respOk.title = 'Transfer completed';
+      respOk.successMessage =
+        'The transfer is indexed, please validate the transaction in a few minutes';
+      if (broadcastResponse.error) {
+        return response.status(400).json(
+          this.errorTransferAlgo({
+            error: broadcastResponse,
+          }),
+        );
+      }
+      respOk.responseData = { txId: txId, txDetail: broadcastResponse };
+      return response.status(200).json(respOk);
+    } catch (e) {
+      return response.status(500).json(this.errorTransferAlgo(e));
+    }
+  }
+
+  async transferSTXItoI(body, response) {
+    try {
+      if (
+        body === null ||
+        body['indexTo'] === undefined ||
+        body['indexFrom'] === undefined ||
+        body['amount'] === undefined
+      ) {
+        return response
+          .status(400)
+          .json(this.errorTransferAlgo({ error: 'body data not completed' }));
+      }
+
+      //get pk to index
+      if (+body['indexFrom'] < 0 || +body['indexTo'] < 0) {
+        return response.status(500).json(this.errorgetAddressAlgo({}));
+      }
+      //convert index to pk stacks
+      const priKey = this.convertIndexToPKStacks(+body['indexFrom']);
+
+      //convert index to account
+      const addressTo = await this.convertIndexToAccountStacks(
+        +body['indexTo'],
+      );
+
+      // Private key from hex string
+      const key = priKey;
+      //const privateKey = createStacksPrivateKey(key);
+      const txOptions2: SignedTokenTransferOptions = {
+        recipient: addressTo,
+        amount: this.compactAmountToMicroAmountGeneric(
+          +body['amount'],
+          +process.env.DECIMALS_STX,
+        ),
+        senderKey: key,
+        network: process.env.TESTNET_ALGO === 'true' ? 'testnet' : 'mainnet',
+        memo: body['msg'],
+        //nonce: 0n, // set a nonce manually if you don't want builder to fetch from a Stacks node
+        fee: 200n, // set a tx fee if you don't want the builder to estimate
+        anchorMode: AnchorMode.Any,
+      };
+
+      const transaction = await makeSTXTokenTransfer(txOptions2);
+
+      // to see the raw serialized tx
+      const serializedTx = transaction.serialize().toString('hex');
+
+      // broadcasting transaction to the specified network
+      const broadcastResponse = await broadcastTransaction(transaction);
+      const txId = broadcastResponse.txid;
+
+      const respOk = new TransferSTXResponse();
+      respOk.success = true;
+      respOk.title = 'Transfer completed';
+      respOk.successMessage =
+        'The transfer is indexed, please validate the transaction in a few minutes';
+      if (broadcastResponse.error) {
+        return response.status(400).json(
+          this.errorTransferAlgo({
+            error: broadcastResponse,
+          }),
+        );
+      }
+      respOk.responseData = { txId: txId, txDetail: broadcastResponse };
+      return response.status(200).json(respOk);
+    } catch (e) {
+      return response.status(500).json(this.errorTransferAlgo(e));
+    }
+  }
+
   async convertIndexToAccountStacks(index: number): Promise<string> {
     const pkAccountBTC = this.getPKBTC(index);
     //convert btc to stacks account
@@ -2003,6 +2138,12 @@ export class BlockchainService {
       );
     }
     return stacksAddress;
+  }
+
+  convertIndexToPKStacks(index: number): string {
+    const pkAccountBTC = this.getPKBTC(index);
+    //console.log(pkAccountBTC);
+    return pkAccountBTC;
   }
 
   getPKBTC(index: number): string {
