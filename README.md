@@ -11,7 +11,7 @@
 # About ePioneers
 
 ePioneers is a climate startup founded with the mission to create state-of-the-art web3 technology infrastructure for nature and communities to thrive.
-We enable Nature Restoration and the  Democratization of Climate Investing with a robust system of data-driven and decentralized solutions. We leverage the best of human talent  combined with disruptive design. Our founding team has a track record of pioneering new industries as the founders of Latin America’s 1st coding bootcamp - World Tech Makers -  and the creation of Latin America’s 1st Digital Nomads Visa. Learn more about our work at www.epioneer.io
+We enable Nature Restoration and the  Democratization of Climate Investing with a robust system of data-driven and decentralized solutions. We leverage the best of human talent  combined with disruptive design. Our founding team has a track record of pioneering new industries as the founders of Latin America’s 1st coding bootcamp - World Tech Makers -  and the creation of Latin America’s 1st Digital Nomads Visa. Learn more about our work at www.selvalove.com
 
 # About ePioneers Crypto Wallet
 
